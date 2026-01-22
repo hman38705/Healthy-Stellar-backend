@@ -1,0 +1,14 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'default-receiver'
+
+receivers:
+  - name: 'default-receiver'
+    # In a real environment, you would configure email, slack, or pagerduty here.
+    # For now, it just logs to stdout/internal storage.

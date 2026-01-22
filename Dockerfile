@@ -1,14 +1,15 @@
 # Multi-stage Dockerfile for Hospital Management System
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --only=production && npm cache clean --force
+RUN apk add --no-cache python3 make g++
+RUN npm ci --only=production --legacy-peer-deps && npm cache clean --force
 
 COPY . .
 RUN npm run build
 
-FROM node:18-alpine AS production
+FROM node:22-alpine AS production
 
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001
