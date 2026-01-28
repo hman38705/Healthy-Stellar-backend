@@ -4,6 +4,7 @@ import { PrescriptionService } from '../services/prescription.service';
 import { PharmacyInventoryService } from '../services/pharmacy-inventory.service';
 import { SafetyAlertService } from '../services/safety-alert.service';
 import { ControlledSubstanceService } from '../services/controlled-substance.service';
+import { InventoryAlertService } from '../services/inventory-alert.service';
 import { CreateDrugDto } from '../dto/create-drug.dto';
 import { CreatePrescriptionDto } from '../dto/create-prescription.dto';
 import { UpdateInventoryDto } from '../dto/update-inventory.dto';
@@ -17,6 +18,7 @@ export class PharmacyController {
     private inventoryService: PharmacyInventoryService,
     private safetyAlertService: SafetyAlertService,
     private controlledSubstanceService: ControlledSubstanceService,
+    private inventoryAlertService: InventoryAlertService,
   ) {}
 
   // Drug Management
@@ -64,6 +66,27 @@ export class PharmacyController {
   @Get('inventory/expiring')
   async getExpiringItems(@Query('days') days?: number) {
     return await this.inventoryService.getExpiringItems(days ? parseInt(days as any) : 90);
+  }
+
+  @Get('inventory/alerts')
+  async getInventoryAlerts() {
+    return await this.inventoryAlertService.checkInventoryAlerts();
+  }
+
+  @Get('inventory/alerts/summary')
+  async getInventoryAlertSummary() {
+    return await this.inventoryAlertService.getInventoryStatusSummary();
+  }
+
+  @Post('inventory/auto-reorder')
+  async generateAutoReorders() {
+    await this.inventoryAlertService.generateAutomaticPurchaseOrders();
+    return { status: 'queued' };
+  }
+
+  @Get('inventory/cost/:drugId')
+  async getCostSummary(@Param('drugId') drugId: string) {
+    return await this.inventoryService.getCostSummaryByDrug(drugId);
   }
 
   @Patch('inventory/:id')

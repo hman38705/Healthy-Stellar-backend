@@ -23,7 +23,13 @@ import { PurchaseOrderService } from './services/purchase-order.service';
 import { DrugRecallService } from './services/drug-recall.service';
 import { DrugWasteService } from './services/drug-waste.service';
 import { InventoryAlertService } from './services/inventory-alert.service';
+import { DrugFormularyService } from './services/drug-formulary.service';
 import { PharmacyController } from './controllers/pharmacy.controller';
+import { DrugSupplierController } from './controllers/drug-supplier.controller';
+import { PurchaseOrderController } from './controllers/purchase-order.controller';
+import { DrugRecallController } from './controllers/drug-recall.controller';
+import { DrugWasteController } from './controllers/drug-waste.controller';
+import { DrugFormularyController } from './controllers/drug-formulary.controller';
 
 @Module({
   imports: [
@@ -42,7 +48,14 @@ import { PharmacyController } from './controllers/pharmacy.controller';
       DrugWaste,
     ]),
   ],
-  controllers: [PharmacyController],
+  controllers: [
+    PharmacyController,
+    DrugSupplierController,
+    PurchaseOrderController,
+    DrugRecallController,
+    DrugWasteController,
+    DrugFormularyController,
+  ],
   providers: [
     DrugService,
     PharmacyInventoryService,
@@ -55,6 +68,7 @@ import { PharmacyController } from './controllers/pharmacy.controller';
     DrugRecallService,
     DrugWasteService,
     InventoryAlertService,
+    DrugFormularyService,
   ],
   exports: [
     DrugService,
@@ -66,6 +80,7 @@ import { PharmacyController } from './controllers/pharmacy.controller';
     DrugRecallService,
     DrugWasteService,
     InventoryAlertService,
+    DrugFormularyService,
   ],
 })
 export class PharmacyModule {}

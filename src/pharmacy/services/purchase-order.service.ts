@@ -19,10 +19,20 @@ export class PurchaseOrderService {
     await this.supplierService.findOne(createDto.supplierId);
 
     const orderNumber = `PO-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+    const items = (createDto.items || []).map((item) => ({
+      ...item,
+      totalCost: item.totalCost ?? item.unitCost * item.quantity,
+    }));
+    const totalAmount =
+      createDto.totalAmount ??
+      items.reduce((total, item) => total + Number(item.totalCost || 0), 0);
     const order = this.orderRepository.create({
       ...createDto,
+      items,
+      totalAmount,
       orderNumber,
-      status: PurchaseOrderStatus.DRAFT,
+      orderDate: createDto.orderDate ? new Date(createDto.orderDate) : new Date(),
+      status: createDto.status ?? PurchaseOrderStatus.DRAFT,
     });
 
     return this.orderRepository.save(order);
@@ -48,7 +58,16 @@ export class PurchaseOrderService {
 
   async update(id: string, updateDto: Partial<PurchaseOrder>): Promise<PurchaseOrder> {
     const order = await this.findOne(id);
-    Object.assign(order, updateDto);
+    const items = updateDto.items
+      ? updateDto.items.map((item) => ({
+          ...item,
+          totalCost: item.totalCost ?? item.unitCost * item.quantity,
+        }))
+      : order.items;
+    const totalAmount =
+      updateDto.totalAmount ??
+      items.reduce((total, item) => total + Number(item.totalCost || 0), 0);
+    Object.assign(order, updateDto, { items, totalAmount });
     return this.orderRepository.save(order);
   }
 
@@ -99,6 +118,25 @@ export class PurchaseOrderService {
       relations: ['supplier'],
       order: { createdAt: 'ASC' },
     });
+  }
+
+  async getOpenOrdersForDrug(drugId: string): Promise<PurchaseOrder[]> {
+    const openStatuses = [
+      PurchaseOrderStatus.PENDING,
+      PurchaseOrderStatus.APPROVED,
+      PurchaseOrderStatus.ORDERED,
+      PurchaseOrderStatus.PARTIALLY_RECEIVED,
+    ];
+    const orders = await this.orderRepository.find({
+      relations: ['supplier'],
+      order: { createdAt: 'DESC' },
+    });
+
+    return orders.filter(
+      (order) =>
+        openStatuses.includes(order.status) &&
+        order.items.some((item) => item.drugId === drugId),
+    );
   }
 
   async getOrdersBySupplier(supplierId: string): Promise<PurchaseOrder[]> {

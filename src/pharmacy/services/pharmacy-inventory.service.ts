@@ -19,6 +19,17 @@ export class PharmacyInventoryService {
     });
   }
 
+  async getInventoryItem(id: string): Promise<PharmacyInventory> {
+    const inventory = await this.inventoryRepository.findOne({
+      where: { id },
+      relations: ['drug'],
+    });
+    if (!inventory) {
+      throw new NotFoundException(`Inventory item ${id} not found`);
+    }
+    return inventory;
+  }
+
   async getTotalQuantity(drugId: string): Promise<number> {
     const inventories = await this.inventoryRepository.find({
       where: {
@@ -31,21 +42,20 @@ export class PharmacyInventoryService {
   }
 
   async updateInventory(id: string, updateDto: UpdateInventoryDto): Promise<PharmacyInventory> {
-    const inventory = await this.inventoryRepository.findOne({ where: { id } });
-
-    if (!inventory) {
-      throw new NotFoundException(`Inventory item ${id} not found`);
-    }
+    const inventory = await this.getInventoryItem(id);
 
     Object.assign(inventory, updateDto);
 
     // Auto-update status based on quantity and expiration
-    if (inventory.quantity <= 0) {
+    const isExpired = new Date(inventory.expirationDate) < new Date();
+    if (inventory.isRecalled) {
+      inventory.status = 'recalled';
+    } else if (isExpired) {
+      inventory.status = 'expired';
+    } else if (inventory.quantity <= 0) {
       inventory.status = 'out-of-stock';
     } else if (inventory.quantity <= inventory.reorderLevel) {
       inventory.status = 'low-stock';
-    } else if (new Date(inventory.expirationDate) < new Date()) {
-      inventory.status = 'expired';
     } else {
       inventory.status = 'available';
     }
@@ -80,6 +90,23 @@ export class PharmacyInventoryService {
         `Insufficient inventory for drug ${drugId}. Short by ${remainingQuantity} units.`,
       );
     }
+  }
+
+  async deductInventoryItem(inventoryId: string, quantity: number): Promise<PharmacyInventory> {
+    const inventory = await this.getInventoryItem(inventoryId);
+
+    if (quantity <= 0) {
+      throw new BadRequestException('Quantity must be greater than zero.');
+    }
+
+    if (inventory.quantity < quantity) {
+      throw new BadRequestException(
+        `Insufficient inventory for item ${inventoryId}. Available ${inventory.quantity}, requested ${quantity}.`,
+      );
+    }
+
+    inventory.quantity -= quantity;
+    return this.updateInventory(inventory.id, { quantity: inventory.quantity });
   }
 
   async getLowStockItems(): Promise<PharmacyInventory[]> {
@@ -139,6 +166,29 @@ export class PharmacyInventoryService {
     });
 
     return this.inventoryRepository.save(inventory);
+  }
+
+  async getCostSummaryByDrug(drugId: string) {
+    const inventories = await this.inventoryRepository.find({
+      where: { drugId },
+      relations: ['drug'],
+    });
+
+    if (!inventories.length) {
+      throw new NotFoundException(`No inventory found for drug ${drugId}`);
+    }
+
+    const totalQuantity = inventories.reduce((total, inv) => total + inv.quantity, 0);
+    const totalValue = inventories.reduce((total, inv) => total + inv.quantity * Number(inv.unitCost), 0);
+    const averageUnitCost = totalQuantity > 0 ? totalValue / totalQuantity : 0;
+
+    return {
+      drugId,
+      drugName: inventories[0].drug?.brandName,
+      totalQuantity,
+      totalValue,
+      averageUnitCost,
+    };
   }
 
   async getRecalledItems(): Promise<PharmacyInventory[]> {

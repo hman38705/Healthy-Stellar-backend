@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DrugWaste, WasteReason, DisposalMethod } from '../entities/drug-waste.entity';
@@ -14,10 +14,7 @@ export class DrugWasteService {
 
   async create(createDto: Partial<DrugWaste>): Promise<DrugWaste> {
     // Verify inventory exists
-    const inventory = await this.inventoryService.getInventoryByDrug(createDto.inventoryId);
-    if (!inventory.length) {
-      throw new NotFoundException(`Inventory item ${createDto.inventoryId} not found`);
-    }
+    await this.inventoryService.getInventoryItem(createDto.inventoryId);
 
     const wasteNumber = `WST-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
     const waste = this.wasteRepository.create({
@@ -26,8 +23,8 @@ export class DrugWasteService {
       totalCost: createDto.quantity * createDto.unitCost,
     });
 
-    // Deduct from inventory
-    await this.inventoryService.deductInventory(createDto.inventoryId, createDto.quantity);
+    // Deduct from specific inventory item
+    await this.inventoryService.deductInventoryItem(createDto.inventoryId, createDto.quantity);
 
     return this.wasteRepository.save(waste);
   }

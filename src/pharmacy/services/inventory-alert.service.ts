@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PharmacyInventoryService } from './pharmacy-inventory.service';
-import { DrugRecallService } from './drug-recall.service';
 import { PurchaseOrderService } from './purchase-order.service';
+import { DrugSupplierService } from './drug-supplier.service';
+import { PurchaseOrderStatus } from '../entities/purchase-order.entity';
 
 export interface InventoryAlert {
   type: 'low_stock' | 'expiring' | 'expired' | 'recalled' | 'reorder_needed';
@@ -18,8 +19,8 @@ export class InventoryAlertService {
 
   constructor(
     private inventoryService: PharmacyInventoryService,
-    private recallService: DrugRecallService,
     private purchaseOrderService: PurchaseOrderService,
+    private supplierService: DrugSupplierService,
   ) {}
 
   /**
@@ -141,17 +142,44 @@ export class InventoryAlertService {
     const itemsNeedingReorder = await this.getItemsNeedingReorder();
 
     for (const item of itemsNeedingReorder) {
-      // Check if there's already a pending purchase order for this drug
-      const existingOrders = await this.purchaseOrderService.getPendingOrders();
-      const hasExistingOrder = existingOrders.some((order) =>
-        order.items.some((orderItem) => orderItem.drugId === item.drugId),
-      );
+      const existingOrders = await this.purchaseOrderService.getOpenOrdersForDrug(item.drugId);
+      const hasExistingOrder = existingOrders.length > 0;
 
       if (!hasExistingOrder) {
-        // In a real system, this would automatically create purchase orders
-        // For now, we'll just log it
+        const [inventoryItems, preferredSuppliers] = await Promise.all([
+          this.inventoryService.getInventoryByDrug(item.drugId),
+          this.supplierService.getPreferredSuppliers(),
+        ]);
+
+        const supplierId = inventoryItems.find((inv) => inv.supplierId)?.supplierId;
+        const fallbackSupplierId = preferredSuppliers[0]?.id;
+
+        if (!supplierId && !fallbackSupplierId) {
+          this.logger.warn(
+            `AUTO PURCHASE ORDER SKIPPED: No supplier on file for ${item.drugName}`,
+          );
+          continue;
+        }
+
+        const unitCost = inventoryItems[0]?.unitCost || 0;
+        await this.purchaseOrderService.create({
+          supplierId: supplierId || fallbackSupplierId,
+          status: PurchaseOrderStatus.PENDING,
+          orderDate: new Date(),
+          items: [
+            {
+              drugId: item.drugId,
+              drugName: item.drugName,
+              quantity: item.reorderQuantity,
+              unitCost,
+              totalCost: unitCost * item.reorderQuantity,
+            },
+          ],
+          totalAmount: unitCost * item.reorderQuantity,
+        });
+
         this.logger.log(
-          `AUTO PURCHASE ORDER NEEDED: ${item.drugName} - Quantity: ${item.reorderQuantity}`,
+          `AUTO PURCHASE ORDER CREATED: ${item.drugName} - Quantity: ${item.reorderQuantity}`,
         );
       }
     }
