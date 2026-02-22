@@ -15,6 +15,7 @@ import { PharmacyModule } from './pharmacy/pharmacy.module';
 import { InfectionControlModule } from './infection-control/infection-control.module';
 import { EmergencyOperationsModule } from './emergency-operations/emergency-operations.module';
 import { AccessControlModule } from './access-control/access-control.module';
+import { ReportsModule } from './reports/reports.module';
 import { DatabaseConfig } from './config/database.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -57,6 +58,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     InfectionControlModule,
     NotificationsModule,
     AccessControlModule,
+    ReportsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
@@ -71,4 +73,4 @@ import { NotificationsModule } from './notifications/notifications.module';
     }
   ],
 })
-export class AppModule {}
+export class AppModule { }
