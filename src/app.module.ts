@@ -144,6 +144,7 @@ const getUserTrackerFromRequest = (req: any): string => {
     InfectionControlModule,
     NotificationsModule,
     QueueModule,
+    FhirModule,
     AccessControlModule,
     TenantConfigModule,
   ],
