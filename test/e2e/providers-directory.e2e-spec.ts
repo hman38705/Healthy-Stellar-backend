@@ -6,7 +6,9 @@ import * as request from 'supertest';
 import { ProviderDirectoryQueryDto } from '../../src/auth/dto/provider-directory-query.dto';
 import { ProvidersController } from '../../src/auth/controllers/providers.controller';
 import { OptionalJwtAuthGuard } from '../../src/auth/guards/optional-jwt-auth.guard';
+import { AuthTokenService } from '../../src/auth/services/auth-token.service';
 import { ProviderDirectoryService } from '../../src/auth/services/provider-directory.service';
+import { SessionManagementService } from '../../src/auth/services/session-management.service';
 
 describe('Providers Directory (e2e)', () => {
   let app: INestApplication;
@@ -50,43 +52,41 @@ describe('Providers Directory (e2e)', () => {
     }),
   };
 
-  class TestOptionalJwtAuthGuard {
-    canActivate(context: ExecutionContext): boolean {
-      const req = context.switchToHttp().getRequest();
-      const header: string | undefined = req.headers.authorization;
-      if (!header) {
-        return true;
-      }
-
-      if (header === 'Bearer valid-test-token') {
-        req.user = {
+  const authTokenServiceMock = {
+    verifyAccessToken: jest.fn((token: string) => {
+      if (token === 'valid-test-token') {
+        return {
           userId: 'user-1',
+          email: 'provider@test.com',
+          role: 'physician',
+          mfaEnabled: true,
           sessionId: 'session-1',
         };
-        return true;
       }
+      return null;
+    }),
+  };
 
-      throw new UnauthorizedException('Invalid or expired token');
-    }
-  }
+  const sessionManagementServiceMock = {
+    isSessionValid: jest.fn(async (sessionId: string) => sessionId === 'session-1'),
+    updateSessionActivity: jest.fn(async () => undefined),
+  };
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [
         ThrottlerModule.forRoot([
           {
-            ttl: 60,
-            limit: 30,
-          },
-          {
             name: 'ip',
-            ttl: 60,
+            ttl: 60000,
             limit: 30,
+            getTracker: (req) => req.headers['x-test-key'] || req.ip,
           },
           {
             name: 'user',
-            ttl: 60,
+            ttl: 60000,
             limit: 30,
+            getTracker: (req) => req.headers['x-test-key'] || req.ip,
           },
         ]),
       ],
@@ -97,8 +97,12 @@ describe('Providers Directory (e2e)', () => {
           useValue: providerDirectoryServiceMock,
         },
         {
-          provide: OptionalJwtAuthGuard,
-          useClass: TestOptionalJwtAuthGuard,
+          provide: AuthTokenService,
+          useValue: authTokenServiceMock,
+        },
+        {
+          provide: SessionManagementService,
+          useValue: sessionManagementServiceMock,
         },
         {
           provide: APP_GUARD,
@@ -120,10 +124,15 @@ describe('Providers Directory (e2e)', () => {
 
   beforeEach(() => {
     providerDirectoryServiceMock.searchProviders.mockClear();
+    authTokenServiceMock.verifyAccessToken.mockClear();
+    sessionManagementServiceMock.isSessionValid.mockClear();
+    sessionManagementServiceMock.updateSessionActivity.mockClear();
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 
   it('returns paginated provider list', async () => {
@@ -192,9 +201,17 @@ describe('Providers Directory (e2e)', () => {
   it('rate limits after 30 requests/min', async () => {
     const server = app.getHttpServer();
     for (let i = 0; i < 30; i++) {
-      await request(server).get('/providers').expect(200);
+      await request(server)
+        .get('/providers')
+        .set('X-Test-Key', 'rate-limit-scenario')
+        .set('Authorization', 'Bearer valid-test-token')
+        .expect(200);
     }
 
-    await request(server).get('/providers').expect(429);
+    await request(server)
+      .get('/providers')
+      .set('X-Test-Key', 'rate-limit-scenario')
+      .set('Authorization', 'Bearer valid-test-token')
+      .expect(429);
   });
 });

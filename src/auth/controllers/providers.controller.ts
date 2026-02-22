@@ -13,7 +13,7 @@ export class ProvidersController {
 
   @Get()
   @UseGuards(OptionalJwtAuthGuard)
-  @Throttle({ ip: { limit: 30, ttl: 60 }, user: { limit: 30, ttl: 60 } })
+  @Throttle({ ip: { limit: 30, ttl: 60000 }, user: { limit: 30, ttl: 60000 } })
   @ApiOperation({
     summary: 'Search provider directory',
     description:
