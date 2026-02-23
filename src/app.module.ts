@@ -1,4 +1,10 @@
 import { APP_FILTER, APP_GUARD, APP_PIPE, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ConfigModule } from '@nestjs/config';
 import { Module } from '@nestjs/common';
@@ -90,6 +96,7 @@ const getUserTrackerFromRequest = (req: any): string => {
 };
 import { TenantInterceptor } from './tenant/interceptors/tenant.interceptor';
 import { AuditLogEntity } from './common/audit/audit-log.entity';
+import { JobsModule } from './jobs/jobs.module';
 import { AuditModule } from './common/audit/audit.module';
 
 @Module({
@@ -103,6 +110,8 @@ import { AuditModule } from './common/audit/audit.module';
       useClass: DatabaseConfig,
     }),
     // Rate limiting with Redis-backed storage
+    ScheduleModule.forRoot(),
+    // Rate limiting and throttling for security
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       useClass: ThrottlerConfigService,
@@ -126,6 +135,7 @@ import { AuditModule } from './common/audit/audit.module';
     QueueModule,
     FhirModule,
     AccessControlModule,
+    JobsModule,
     StellarModule,
     AuditModule,
     ReportsModule,
